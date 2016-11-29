@@ -1,0 +1,17 @@
+{
+  "name": "P_canjs",
+  "authors": [
+    "Bin Wu <starbing23@gmail.com>"
+  ],
+  "description": "practice canJS",
+  "main": "",
+  "license": "MIT",
+  "homepage": "",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ]
+}
