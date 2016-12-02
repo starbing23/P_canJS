@@ -58,7 +58,10 @@
 
     //model
     Contact = can.Model({
-        findAll:'GET /contacts'
+        findAll: 'GET /contacts',
+        create: 'POST /contacts',
+        update: 'PUT /contacts/{id}',
+        destroy: 'DELETE /contacts/{id}'
     }, {});
     Contact.List = can.Model.List({
         filter: function (category) {
@@ -83,6 +86,16 @@
     can.fixture('GET /contacts', function () {
         return [CONTACTS];
     });
+    var id = 5;
+    can.fixture('POST /contacts', function () {
+        return { id: (id++) };
+    });
+    can.fixture('PUT /contacts/{id}', function () {
+        return {}
+    });
+    can.fixture('DELETE /contacts/{id}', function () {
+        return {}
+    });
     can.fixture('GET /categories', function () {
         return [CATEGORIES];
     });
@@ -94,7 +107,29 @@
                 contacts: this.options.contacts,
                 categories: this.options.categories
             }))
-        }
+        },
+        //add events to contact element to realize updating feature
+        '.contact input focusout': function (el) {
+            this.updateContact(el);
+        },
+        '.contact input keyup': function (el,ev) {
+            if (ev.keyCode == 13) {
+                el.trigger('blur')
+            }
+        },
+        '.contact select change': function (el) {
+            this.updateContact(el)
+        },
+        updateContact: function (el) {
+            var contact = el.closest('.contact').data('contact');  //find the closet .contact element and retrieve the model instance using $.data()
+            contact.attr(el.attr('name'), el.val()).save();  //find the correct attr based on el.attr('name') and change it and save it
+        },
+        '.remove click': function (el) {
+            el.closest('.contact').data('contact').destroy();
+        },
+        '{Contact} created': function (list, ev, contact) {
+            this.options.contacts.push(contact);
+        },
     });
     Filter = can.Control({
         init: function () {
@@ -111,20 +146,58 @@
             can.route.attr('category', el.data('category'));
         }
     });
+    Create = can.Control({
+        show: function () {
+            this.contact = new Contact();
+            this.element.html(can.view('views/createView2.ejs', {
+                contact: this.contact,
+                categories:this.options.categories
+            }));
+            this.element.slideDown(200);
+        },
+        hide:function(){
+            this.element.slideUp(200);
+        },
+        '.contact input keyup':function(el, ev){
+            if (ev.keyCode == 13) {
+                this.createContact(el);
+            }
+        },
+        '.save click':function(el){
+            this.createContact(el);
+        },
+        '.cancel click':function(){
+            this.hide();
+        },
+        createContact:function(el){
+            var form = this.element.find('form');
+            values = can.deparam(form.serialize()); //use jquery serialize() to find all the values of form as a string. use can.deparam to convert string to an object
+            if (values.name != '') {
+                this.contact.attr(values).save();
+                this.hide();
+            }
+        },
+        '{document} #new-contact click': function () {
+            this.show();
+        }
+    });
 
     //bootstrap the app
     $(document).ready(function () {
         $.when(Contact.findAll(),Category.findAll()).then(function (contactResponse, categoryResponse) {
             var contacts = contactResponse[0];
             var categories = categoryResponse[0];
+            new Create('#create', {
+                categories:categories
+            });
             new Contacts('#contacts', {
                 contacts: contacts,
                 categories: categories
-            })
+            });
             new Filter('#filter', {
                 contacts: contacts,
-                categories:categories
-            })
+                categories: categories
+            });
         });
     });
 })()
