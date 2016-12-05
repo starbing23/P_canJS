@@ -1,0 +1,32 @@
+﻿<!DOCTYPE html>
+
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <meta charset="utf-8" />
+    <title>Hello world</title>
+</head>
+<body>
+    <div id="out"></div>
+    <script id="app" type="text/stache">
+        <hello-world>Bin</hello-world>
+        <hello-world>Bin Wu</hello-world>
+    </script>
+    <script src="../bower_components/jquery/dist/jquery.min.js"></script>
+    <script src="../bower_components/CanJS/can.jquery.min.js"></script>
+    <script src="../bower_components/CanJS/can.stache.js"></script>
+    <script id="demo-source">
+
+        can.Component.extend({
+            tag: 'hello-world',
+            template: '<h1 can-click="updateName">Hello world! <content></content>. I like {{name}} so much</h1>',
+            scope: {
+                name: 'canJS',
+                updateName: function () {
+                    this.attr('name', 'Yu Huang');
+                },
+            },
+        })
+        $('#out').html(can.view('app', {}));
+    </script>
+</body>
+</html>
