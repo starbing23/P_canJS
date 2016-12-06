@@ -1,0 +1,195 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta name="description" content="TodoMVC Guide 3.0 Start">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width">
+    <title>JS Bin</title>
+    <link rel="stylesheet" href="TodoMVC.css" />
+</head>
+<body>
+    <script type="text/stache" id="todo-create-template">
+        <input id="new-todo" type="text" placeholder="What needs to be done?" {($value)}="todo.name" ($enter)="createTodo()"/>
+    </script>
+    <script type="text/stache" id="todo-list-template">
+        <ul id="todo-list">
+            {{#each todos}}
+            <li class="todo {{#if complete}}completed{{/if}} {{#if isDestroying}}destroying{{/if}} {{#if isEditing(this)}}editing{{/if}}">
+                <div class="view">
+                    <input type="checkbox" class="toggle" {($checked)}="complete" ($change)="save()"/>
+                    <label ($dblclick)="edit(this)">{{name}}</label>
+                    <button class="destroy" ($click)="destroy()"></button>  <!--此功能能实现是因为can.connect.superMap已经自动添加了方法给Todo和TodoList-->
+                </div>
+                <input class="edit" type="text" {($value)}="name" ($enter)="updateName()" {$focused}="isEditing(this)" ($blur)="cancelEdit()"/>
+            </li>
+            {{/each}}
+        </ul>
+    </script>
+    <script type="text/stache" id="todomvc-template">
+        <section id="todoapp">
+            <header id="header">
+                <h1>todos</h1>
+                <todo-create></todo-create>
+            </header>
+            <section id="main" class="">
+                <input id="toggle-all" type="checkbox" {($checked)}="allChecked" {$disabled}="todosList.saving.length" />
+                <label for="toggle-all">Mark all as complete</label>
+                <todo-list {todos}="todosPromise.value"></todo-list>
+            </section>
+            <footer id="footer" class="">
+                <span id="todo-count">
+                    <strong>{{todosPromise.value.active.length}}</strong> items left
+                </span>
+                <ul id="filters">
+                    <li>
+                        <a href="{{routeUrl filter=undefined}}" {{#routeCurrent filter=undefined}}class="selected"{{/routeCurrent}}>All</a>
+                    </li>
+                    <li>
+                        <a href="{{routeUrl filter='active'}}" {{#routeCurrent filter='active'}} class="selected" {{/routeCurrent}}>Active</a>
+                    </li>
+                    <li>
+                        <a href="{{routeUrl filter='complete'}}" {{#routeCurrent filter='complete'}} class="selected" {{/routeCurrent}}>Complete</a>
+                    </li>
+                </ul>
+                <button id="clear-completed" ($click)="todosList.destroyComplete()">
+                    Clear completed ({{todosPromise.value.complete.length}})
+                </button>
+            </footer>
+        </section>
+    </script>
+
+    <script src="https://code.jquery.com/jquery-2.2.4.js"></script>
+    <script src="https://unpkg.com/can/dist/global/can.all.js"></script>
+    <script>
+        //模拟todo数据在数据库的格式
+        var todoAlgebra = new can.set.Algebra(
+            can.set.props.boolean("complete"),
+            can.set.props.id("id"),
+            can.set.props.sort("sort")
+        );
+        //模拟todo数据，按照相应格式存储在数据库里
+        var todoStore = can.fixture.store([
+            { name: "mow lawn", complete: false, id: 5 },
+            { name: "dishes", complete: true, id: 6 },
+            { name: "learn canjs", complete: false, id: 7 }
+        ], todoAlgebra);
+        //使用fixture模拟服务器/api/todos返回数据，延迟1秒返回
+        can.fixture("/api/todos", todoStore);
+        can.fixture.delay = 1000;
+        //创建Todo map对象
+        var Todo = can.DefineMap.extend({
+            id: "string",
+            name: "string",
+            complete: { type: "boolean", value: false }
+        });
+        //创建Todo.List list对象
+        Todo.List = can.DefineList.extend({
+            "#": Todo,
+            get active() {
+                return this.filter({ complete: false });
+            },
+            get complete() {
+                return this.filter({ complete: true });
+            },
+            get allComplete() {
+                return this.length === this.complete.length;
+            },
+            get saving(){
+                return this.filter(function(todo){
+                    return todo.isSaving();
+                })
+            },
+            updateCompleteTo: function (value) {
+                this.forEach(function (todo) {
+                    todo.complete = value;
+                    todo.save();
+                })
+            },
+            destroyComplete: function () {
+                this.complete.forEach(function (todo) {
+                    todo.destroy();
+                })
+            },
+        });
+        //使用connect向服务器提出请求,并且将返回数据与Todo和Todo.List关联，这样就能提供方法创建，修改，更新，删除在服务器上的数据
+        can.connect.superMap({
+            url: "/api/todos",
+            Map: Todo,
+            List: Todo.List,
+            name: "todo",
+            algebra: todoAlgebra
+        });
+        var TodoCreateVM = can.DefineMap.extend({
+            todo: { Value: Todo },   //注意大写
+            createTodo: function () {
+                this.todo.save().then(function () {
+                    this.todo = new Todo();
+                }.bind(this));
+            }
+        });
+        can.Component.extend({
+            tag: "todo-create",
+            view: can.stache.from("todo-create-template"),
+            ViewModel:TodoCreateVM,  //注意大写
+        });
+        var TodoListVM = can.DefineMap.extend({
+            todos: Todo.List,
+            editing: Todo,
+            backupName: "string",
+            isEditing: function (todo) {
+                return todo === this.editing;
+            },
+            edit: function (todo) {
+                this.backupName = todo.name;
+                this.editing = todo;
+                console.log(this.editing.name);
+            },
+            cancelEdit: function () {
+                if (this.editing) {
+                    this.editing.name = this.backupName;
+                };
+                this.editing = null;
+            },
+            updateName: function () {
+                this.editing.save();
+                console.log(this.editing);
+                this.editing = null;
+            }
+        });
+        can.Component.extend({
+            tag: "todo-list",
+            view: can.stache.from("todo-list-template"),
+            ViewModel: TodoListVM
+        });
+        var AppVM = can.DefineMap.extend({
+            filter: "string",
+            get todosPromise() {
+                if (!this.filter) {
+                    return Todo.getList({});
+                } else {
+                    return Todo.getList({ complete: this.filter === "complete" });
+                }
+            },
+            todosList: {
+                get: function (lastSetValue, resolve) {
+                    this.todosPromise.then(resolve);
+                }
+            },
+            get allChecked() {
+                return this.todosList && this.todosList.allComplete;
+            },
+            set allChecked(newVal) {
+                this.todosList && this.todosList.updateCompleteTo(newVal);
+            }
+        });
+        var appVM = new AppVM;
+        can.route.data = appVM;
+        can.route("{filter}");
+        can.route.ready();
+        var template = can.stache.from("todomvc-template");
+        var frag = template(appVM);
+        document.body.appendChild(frag);
+    </script>
+</body>
+
+</html>
